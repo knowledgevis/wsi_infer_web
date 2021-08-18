@@ -1,0 +1,1 @@
+from .wsi_thumbnail import wsi_thumbnail
