@@ -1,8 +1,35 @@
+
 ==========
-arbor_nova
+web_apps
 ==========
 
-Arbor easy-mode apps for Girder 3.
+easy-mode web apps plugin for Girder 3.
+
+This application uses Girder 3 to serve a webpage which can invoke
+python functions through AJAX calls to perform operations.  An instance
+of girder_worker services the API to run jobs invoked through the web interface.
+
+To add a new mini-application to the web interface:
+
+Add python file for app function in ttt/app_support
+Edit __init__.py in ttt/app_support
+Edit rest.py in girder_plugin/arbor_nova with import statement, 
+    self.route statement, 
+    and a definition wrapping the function and parameters
+Add vue definition in client/src/apps
+Add picture for app in client/src/assets
+Add app to the home page by editing Home.vue in client/src/views
+Add router to app in router.js in client/src
+Run pip install -e . in girder_plugin
+Run pip install -e . in girder_worker_tasks
+Run yarn build in /client, rm the old dist and cp the new one
+Restart girder_worker.service and girder.service
+    (sudo systemctl restart girder, sudo systemctl restart girder_worker)
+
+For debugging purposes, it is easier to run 'girder serve' and girder_worker by hand. 
+To run girder_worker, do "python -m girder_worker" in a shell with the correct environment
+
+
 
 Installation
 ------------
@@ -10,7 +37,7 @@ Installation
 This is descriptive rather than prescriptive, but it is what has been tested.
 
 * Do this work with Python3
-* Have two virtualenvs, one for girder named `girder` and one for girder-worker named `gw`.
+* Have a virtualenv or use conda
 * Install mongo and rabbitmq
 
 * In virtualenv **girder** run the following commands, it doesn't matter where you run them from:
@@ -31,13 +58,13 @@ This is descriptive rather than prescriptive, but it is what has been tested.
     $ girder serve                         # start serving girder
  
 
-* In virtualenv **gw** run the following command, it doesn't matter where you run it from:
+* In virtualenv **girder** run the following command, it doesn't matter where you run it from:
 
 .. code-block:: bash
 
     $ pip install --pre girder-worker
 
-* These commands need to be run in the **gw** virtualenv from a specific location
+* These commands need to be run in the **girder** virtualenv from a specific location
 
 .. code-block:: bash
 
@@ -46,16 +73,9 @@ This is descriptive rather than prescriptive, but it is what has been tested.
     $ girder-worker                        # start girder-worker
 
 
-Features
---------
-
-Installs a REST endpoint for launching a GW job. The endpoint will take in a csv file id,
-and an output item id, then call the GW job. The GW job will download the csv file, append
-a new column to each line, then upload the resulting file to the output item.
 
 
 TODO
 ----
 
-* Should we have to enable the jobs or other dependent plugins? how to get those enabled automatically?
-* Need to cleanup the output file on the GW task side. Is there a way to do that automatically?
+* uploaded files are stored in girder permanent.y  Is there a way to clean up?

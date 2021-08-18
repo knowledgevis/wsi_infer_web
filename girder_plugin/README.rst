@@ -1,5 +1,5 @@
 ==========
-arbor_nova
+web_apps
 ==========
 
-Arbor easy-mode apps plugin for Girder 3.
+easy-mode web apps plugin for Girder 3.
