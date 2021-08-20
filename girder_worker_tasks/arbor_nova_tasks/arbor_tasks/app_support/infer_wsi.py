@@ -10,6 +10,10 @@ import billiard as multiprocessing
 from billiard import Queue, Process
 import json
 
+# path to model file may vary depending on whether this is in a docker container.  We could make
+# this more elegant using environment variables, but simple is also good
+#modelPath = '/models/deeplabv3_resnet50_10ep_lr1e4_nonorm.pkl' 
+modelPath = './models/deeplabv3_resnet50_10ep_lr1e4_nonorm.pkl'
 
 #-------------------------------------------
 import sys
@@ -43,115 +47,195 @@ warnings.filterwarnings("ignore")
 @app.task(bind=True)
 def infer_wsi(self,image_file,**kwargs):
 
-    #print(" input image filename = {}".format(image_file))
+    print(" input image filename = {}".format(image_file))
 
     # setup the GPU environment for pytorch
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    DEVICE = 'cuda'
+    #os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    #DEVICE = 'cuda'
 
     print('perform forward inferencing')
 
+    # generate a spot in Girder for the output data file (a geoJSON file)
+    # We generate unique names for multiple runs.  
+    outname = NamedTemporaryFile(delete=False).name+'_preds.json'
 
-    subprocess = False
-    if (subprocess):
-        # declare a subprocess that does the GPU allocation to keep the GPU memory from leaking
-        msg_queue = Queue()
-        gpu_process = Process(target=start_inference, args=(msg_queue,image_file))
-        gpu_process.start()
-        predict_image = msg_queue.get()
-        gpu_process.join()     
-    else:
-        predict_image = start_inference_mainthread(image_file)
-  
-    predict_bgr = cv2.cvtColor(predict_image,cv2.COLOR_RGB2BGR)
-    print('output conversion and inferencing complete')
+    # assume single user model, we aren't locking GPUs. use a single concurrency
+    # option in girder_worker to force single user at a time
+    c = extractPatch(modelPath)
+    c.setArguments(image_file, outname,[5])
+    predictOutput = c.parseMeta_and_pullTiles()
 
-    # generate unique names for multiple runs.  Add extension so it is easier to use
-    outname = NamedTemporaryFile(delete=False).name+'.png'
+    # write the output file to the named file
+    with open(outname, 'w') as outfile:
+        outfile.write(trypredictOutputthis)
 
-    # write the output object using openCV  
-    print('writing output')
-    cv2.imwrite(outname,predict_bgr)
-    print('writing completed')
+    print('inferencing complete')
 
     # new output of segmentation statistics in a string
-    statistics = generateStatsString(predict_image)
+    statistics = c.generateStatsString(predictOutput)
     # generate unique names for multiple runs.  Add extension so it is easier to use
 
-    statoutname = NamedTemporaryFile(delete=False).name+'.json'
+    statoutname = NamedTemporaryFile(delete=False).name+'_stats.json'
     open(statoutname,"w").write(statistics)
 
     # return the name of the output file and the stats
     return outname,statoutname
 
 
+#---------------------------
+# begin NIH AI code 
+#---------------------------
+
+
+class extractPatch:
+
+    def __init__(self,modelPath):
+        self.save_image_size = 500   # specify image size to be saved (note this is the same for all magnifications)
+        self.pixel_overlap = 100       # specify the level of pixel overlap in your saved images
+        self.limit_bounds = True     # this is weird, dont change it
+        self.model_path = modelPath
+ 
+
+    def setArguments(self,image_file,save_name,magnification=[5]):     
+        self.image_file = image_file #'1044 - 2020-08-10 08.39.18.ndpi'#'1043 - 2020-08-10 08.48.55.ndpi'
+        self.save_name = save_name #'CZ2'#'trythis'
 
 
 
+    def parseMeta_and_pullTiles(self):
+ 
+        #first load pytorch model
+        learn = load_learner(self.model_path,cpu=False)
 
-def start_inference_mainthread(image_file):
-    reset_seed(1)
+        # first grab data from digital header
+        # print(os.path.join(self.file_location,self.image_file))
+        oslide = openslide.OpenSlide(os.path.join(self.image_file))
 
-    best_prec1_valid = 0.
-    #torch.backends.cudnn.benchmark = True
+        # this is physical microns per pixel
+        acq_mag = 10.0/float(oslide.properties[openslide.PROPERTY_NAME_MPP_X])
 
-    #saved_weights_list = sorted(glob.glob(WEIGHT_PATH + '*.tar'))
-    saved_weights_list = [WEIGHT_PATH+'model_iou_0.4996_0.5897_epoch_45.pth.tar'] 
-    print(saved_weights_list)
+        # this is nearest multiple of 20 for base layer
+        base_mag = int(20 * round(float(acq_mag) / 20))
 
-    print('about to instantiate model on GPU')
-    # create segmentation model with pretrained encoder
-    model = smp.Unet(
-        encoder_name=ENCODER,
-        encoder_weights=ENCODER_WEIGHTS,
-        classes=len(CLASS_VALUES),
-        activation=ACTIVATION,
-        aux_params=None,
-    )
+        # this is how much we need to resample our physical patches for uniformity across studies
+        physSize = round(self.save_image_size*acq_mag/base_mag)
 
-    print('model created')
-    model = nn.DataParallel(model)
-    print('data parallel done')
-    model = model.cuda()
-    print('moved to gpu.  now load pretrained weights')
-    model = load_best_model(model, saved_weights_list[-1], best_prec1_valid)
-    print('Loading model is finished!!!!!!!')
+        # grab tiles accounting for the physical size we need to pull for standardized tile size across studies
+        tiles = DeepZoomGenerator(oslide, tile_size=physSize-round(self.pixel_overlap*acq_mag/base_mag), overlap=round(self.pixel_overlap*acq_mag/base_mag/2), limit_bounds=self.limit_bounds)
 
-    # return image data so girder toplevel task can write it out
-    predict_image = inference_image(model,image_file, BATCH_SIZE, len(CLASS_VALUES))
+        # calculate the effective magnification at each level of tiles, determined from base magnification
+        tile_lvls = tuple(base_mag/(tiles._l_z_downsamples[i]*tiles._l0_l_downsamples[tiles._slide_from_dz_level[i]]) for i in range(0,tiles.level_count))
 
-    # return the image to the main process
-    return predict_image
+        # pull tiles from levels specified by self.mag_extract
+        for lvl in self.mag_extract:
+            if lvl in tile_lvls:
+                # print(lvl)
+                # pull tile info for level
+                x_tiles, y_tiles = tiles.level_tiles[tile_lvls.index(lvl)]
+
+                # note to self, we have to iterate b/c deepzoom does not allow casting all at once at list (??)
+                polygons = []
+                # xy_lim = self.get_box(path=self.xml_file)
+                for y in range(0,y_tiles):
+                    for x in range(0,x_tiles):
+
+                        # grab tile coordinates
+                        tile_coords = tiles.get_tile_coordinates(tile_lvls.index(lvl), (x, y))
+                        save_coords = str(tile_coords[0][0]) + "-" + str(tile_coords[0][1]) + "_" + '%.0f'%(tiles._l0_l_downsamples[tile_coords[1]]*tile_coords[2][0]) + "-" + '%.0f'%(tiles._l0_l_downsamples[tile_coords[1]]*tile_coords[2][1])
+
+                        tile_pull = tiles.get_tile(tile_lvls.index(lvl), (x, y))
+                        ws = self.whitespace_check(im=tile_pull)
+                        if ws < 0.95:
+                            tile_pull = tile_pull.resize(size=(self.save_image_size, self.save_image_size),resample=PIL.Image.ANTIALIAS)
+                            tile_pull = np.array(tile_pull)
+                            inp, targ, pred, _ = learn.predict(tile_pull, with_input=True)
+                            pred_arr = pred.cpu().detach().numpy()
+                            img_arr = pred_arr.astype("bool")
+                            pred_polys = self.tile_ROIS(imgname=save_coords,mask_arr=img_arr)
+                            polygons += pred_polys
+
+                predicton = self.slide_ROIS(polygons=polygons,mpp=float(oslide.properties[openslide.PROPERTY_NAME_MPP_X]))
+
+            else:
+                print("WARNING: YOU ENTERED AN INCORRECT MAGNIFICATION LEVEL")
+
+        return prediction
+
+    def tile_ROIS(self,imgname,mask_arr):
+        polygons = []
+        nameparts = str.split(imgname, '_')
+        pos = str.split(nameparts[0], '-')
+        sz = str.split(nameparts[1], '-')
+        radj = max([int(sz[0]), int(sz[1])]) / (self.save_image_size -1)
+        start1 = int(pos[0])
+        start2 = int(pos[1])
+        c = morphology.remove_small_objects(mask_arr.astype(bool), 10, connectivity=2)
+        c = morphology.binary_closing(c)
+        c = morphology.remove_small_holes(c, 1000)
+        contours, hier = cv2.findContours(c.astype('uint8'), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        for contour in contours:
+            cvals = contour.transpose(0, 2, 1)
+            cvals = np.reshape(cvals, (cvals.shape[0], 2))
+            cvals = cvals.astype('float64')
+            for i in range(len(cvals)):
+                cvals[i][0] = start1 + radj * (cvals[i][0])
+                cvals[i][1] = start2 + radj * (cvals[i][1])
+            try:
+                poly = Polygon(cvals)
+                if poly.length > 0:
+                    polygons.append(Polygon(poly.exterior))
+            except:
+                pass
+
+        return polygons
+
+    def slide_ROIS(self,polygons,mpp):
+        all_polys = unary_union(polygons)
+        final_polys = []
+        for poly in all_polys:
+            #print(poly)
+            if poly.type == 'Polygon':
+                newpoly = Polygon(poly.exterior)
+                if newpoly.area*mpp*mpp > 12000:
+                    final_polys.append(newpoly)
+            if poly.type == 'MultiPolygon':
+                for roii in poly.geoms:
+                    newpoly = Polygon(roii.exterior)
+                    if newpoly.area*mpp*mpp > 12000:
+                        final_polys.append(newpoly)
+        final_shape = unary_union(final_polys)
+
+        trythis = '['
+        for i in range(0, len(final_shape)):
+            trythis += json.dumps(
+                {"type": "Feature", "id": "PathAnnotationObject", "geometry": shapely.geometry.mapping(final_shape[i]),
+                 "properties": {"classification": {"name": "Tumor", "colorRGB": -16711936}, "isLocked": False,
+                                "measurements": []}}, indent=4)
+            if i < len(final_shape) - 1:
+                trythis += ','
+        trythis += ']'
+        # return the output for postprocessing and download
+        return trythis
+      
+
+    def whitespace_check(self,im):
+        bw = im.convert('L')
+        bw = np.array(bw)
+        bw = bw.astype('float')
+        bw=bw/255
+        prop_ws = (bw > 0.8).sum()/(bw>0).sum()
+        return prop_ws
+
+        # ------ end NIH-AI Resource Team code --------------------------------
 
 
-# calculate the statistics for the image by converting to numpy and comparing masks against
-# the tissue classes. create masks for each class and count the number of pixels
+    # calculate the statistics for the image to be returned to the GUI for display
 
-def generateStatsString(predict_image):
-    # ERMS=red, ARMS=blue. Stroma=green, Necrosis = RG (yellow)
-    img_arr = np.array(predict_image)
-    # calculate total pixels = height*width
-    total_pixels = img_arr.shape[0]*img_arr.shape[1]
-    # count the pixels in the non-zero masks
-    erms_count = np.count_nonzero((img_arr == [255, 0, 0]).all(axis = 2))
-    stroma_count = np.count_nonzero((img_arr == [0, 255, 0]).all(axis = 2)) 
-    arms_count = np.count_nonzero((img_arr == [0, 0, 255]).all(axis = 2)) 
-    necrosis_count = np.count_nonzero((img_arr == [255, 255, 0]).all(axis = 2)) 
-    print(f'erms {erms_count}, stroma {stroma_count}, arms {arms_count}, necrosis {necrosis_count}')
-    erms_percent = erms_count / total_pixels * 100.0
-    arms_percent = arms_count / total_pixels * 100.0
-    necrosis_percent = necrosis_count / total_pixels * 100.0
-    stroma_percent = stroma_count / total_pixels * 100.0
-    # pack output values into a string returned as a file
-    #statsString = 'ERMS:',erms_percent+'\n'+
-    #              'ARMS:',arms_percent+'\n'+
-    #              'stroma:',stroma_percent+'\n'+
-    #              'necrosis:',necrosis_percent+'\n'
-    statsDict = {'ERMS':erms_percent,
-                 'ARMS':arms_percent, 
-                 'stroma':stroma_percent, 
-                 'necrosis':necrosis_percent }
-    # convert dict to json string
-    print('statsdict:',statsDict)
-    statsString = json.dumps(statsDict)
-    return statsString
+    def generateStatsString(predict_image):        
+        statsDict = {'metric':1.0 }
+        # convert dict to json string
+        print('statsdict:',statsDict)
+        statsString = json.dumps(statsDict)
+        return statsString
+
