@@ -262,25 +262,32 @@ export default {
 
       // build the params to be passed into the REST call
       const params = optionsToParameters({
+        imageFileName: this.imageFileName,
         imageId: this.imageFile._id,
         outputId: outputItem._id,
         statsId: statsItem._id
       });
+      console.log('params to inference',params)
+ 
       // start the job by passing parameters to the REST call
+      console.log('starting backend inference')
       this.job = (await this.girderRest.post(
         `inference?${params}`,
       )).data;
-
+      console.log('after inference call.  quick or slow? ')
+      console.log('job',this.job)
       // wait for the job to finish
-      await pollUntilJobComplete(this.girderRest, this.job, job => this.job = job);
+      //await pollUntilJobComplete(this.girderRest, this.job, job => this.job = job);
 
       if (this.job.status === 3) {
         this.running = false;
+        console.log('printing returned item from job. includes the JSON?',this.job)
 	       // pull the URL of the output from girder when processing is completed. This is used
 	       // as input to an image on the web interface
-        this.result = (await this.girderRest.get(`item/${outputItem._id}/download`,{responseType:'blob'})).data;
-	       // set this variable to display the resulting output image on the webpage 
-        this.outputImageUrl = window.URL.createObjectURL(this.result);
+        //this.result = (await this.girderRest.get(`item/${outputItem._id}/download`,{responseType:'blob'})).data;
+	       // set this variable to display the resulting output image on the webpage
+         console.log('job result?',this.job.result) 
+        this.outputImageUrl = window.URL.createObjectURL(this.job.result);
 
         // get the stats returned
         this.stats = (await this.girderRest.get(`item/${statsItem._id}/download`,{responseType:'text'})).data;
@@ -366,6 +373,7 @@ export default {
         this.imageFile = await uploader.start();
         // display the uploaded image on the webpage
         this.uploadInProgress = false;
+        console.log('image uploader result',this.imageFile)
 	      console.log('displaying input image...');
         //this.imageBlob = (await this.girderRest.get(`file/${this.imageFile._id}/download`,{responseType:'blob'})).data;
         //this.uploadedImageUrl = window.URL.createObjectURL(this.imageBlob);
