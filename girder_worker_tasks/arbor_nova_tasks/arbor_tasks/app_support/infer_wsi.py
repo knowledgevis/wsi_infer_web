@@ -3,12 +3,34 @@ from girder_worker.app import app
 from girder_worker.utils import girder_job
 from tempfile import NamedTemporaryFile
 
+# try to keep fastai from spawning multiple processes
+import os
+os.sched_setaffinity(0, (0,))
+
 # declared for subprocess to do GPU stuff.  Package 'billiard' comes with celery
 # and is a workaround for subprocess limitations on 'daemonic' processes.
 
-import billiard as multiprocessing
-from billiard import Queue, Process
+#subprocessMethod = 'billiard'
+subprocessMethod = 'torch'
+#subprocessMethod = 'none'
+
+if (subprocessMethod == "torch"):
+    print('setup torch multiprocessing')
+    import torch.multiprocessing as multiprocessing
+    #import billiard as multiprocessing
+    from torch.multiprocessing import Queue, Process
+    from torch.multiprocessing import set_start_method
+elif (subprocessMethod == "billiard"):
+    print('setup billiard multiprocessing')
+    import billiard
+    import billiard as multiprocessing
+    from billiard import Queue, Process
+else:
+    print('no subprocess method set')
+
 import json
+
+
 
 # path to model file may vary depending on whether this is in a docker container.  We could make
 # this more elegant using environment variables, but simple is also good
@@ -51,7 +73,7 @@ def infer_wsi(self,image_file,**kwargs):
 
     # setup the GPU environment for pytorch
     #os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    #DEVICE = 'cuda'
+    DEVICE = torch.device(f"cuda:0")
 
     print('perform forward inferencing')
 
@@ -59,15 +81,33 @@ def infer_wsi(self,image_file,**kwargs):
     # We generate unique names for multiple runs.  
     outname = NamedTemporaryFile(delete=False).name+'_preds.json'
 
-    # assume single user model, we aren't locking GPUs. use a single concurrency
-    # option in girder_worker to force single user at a time
-    c = extractPatch(modelPath)
-    c.setArguments(image_file, outname,[5])
-    predictOutput = c.parseMeta_and_pullTiles()
+    subprocess = True
+
+    if (subprocessMethod == 'torch'):
+        # declare a subprocess that does the GPU allocation to keep the GPU memory from leaking
+        print('starting a torch subprocess')
+        set_start_method("spawn")
+        msg_queue = Queue()
+        #gpu_process = torch.multiprocessing.spawn(fn=runInference_Subprocess, 
+        #               args=(msg_queue,image_file,outname,modelPath),daemon=False)
+        gpu_process = Process(target=runInference_Subprocess, args=(msg_queue,image_file,outname,modelPath))
+        gpu_process.start()
+        predictOutput = msg_queue.get()
+        gpu_process.join()     
+    elif (subprocessMethod == 'billiard'):
+        print('starting a billiard subprocess')
+        multiprocessing.set_start_method("spawn")
+        msg_queue = Queue()
+        gpu_process = billiard.Process(target=runInference_Subprocess, args=(msg_queue,image_file,outname,modelPath))
+        gpu_process.start()
+        predictOutput = msg_queue.get()
+        gpu_process.join()     
+    else:
+        predictOutput = runInference(image_file,outname,modelPath)
 
     # write the output file to the named file
     with open(outname, 'w') as outfile:
-        outfile.write(trypredictOutputthis)
+        outfile.write(predictOutput)
 
     print('inferencing complete')
 
@@ -80,6 +120,25 @@ def infer_wsi(self,image_file,**kwargs):
 
     # return the name of the output file and the stats
     return outname,statoutname
+
+
+def runInference(image_file,outname,modelPath):
+    # assume single user model, we aren't locking GPUs. use a single concurrency
+    # option in girder_worker to force single user at a time
+    c = extractPatch(modelPath)
+    c.setArguments(image_file, outname,[5])
+    predictOutput = c.parseMeta_and_pullTiles()
+    return predictOutput
+
+
+def runInference_Subprocess(msg_queue,image_file,outname,modelPath):
+    # assume single user model, we aren't locking GPUs. use a single concurrency
+    # option in girder_worker to force single user at a time
+    c = extractPatch(modelPath)
+    c.setArguments(image_file, outname,[5])
+    predictOutput = c.parseMeta_and_pullTiles()
+    msg_queue.put(predictOutput)
+
 
 
 #---------------------------

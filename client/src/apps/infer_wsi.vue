@@ -268,7 +268,7 @@ export default {
       });
       // start the job by passing parameters to the REST call
       this.job = (await this.girderRest.post(
-        `arbor_nova/infer_wsi?${params}`,
+        `inference?${params}`,
       )).data;
 
       // wait for the job to finish
