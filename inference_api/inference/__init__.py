@@ -303,8 +303,8 @@ class extractPatch:
         print('file record',fileRec)
         # hard to find the file on the disk, so download again.  Inefficient, but it works
         print('downloading file')
-        gc.downloadFile(fileRec['_id'],'imageFile.ndpi')
-        self.image_file = 'imageFile.ndpi'
+        gc.downloadFile(fileRec['_id'],'imageFile')
+        self.image_file = 'imageFile'
         print('setting infile name and downloaded it')
 
 
