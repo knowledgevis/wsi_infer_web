@@ -94,8 +94,8 @@
         <div v-if="runCompleted" xs12 class="text-xs-center mb-4 ml-4 mr-4">
           Job Complete  ... 
         </div>
-        <code v-if="!running && job.status === 4" class="mb-4 ml-4 mr-4" style="width: 100%">{{ job.log.join('\n') }}</code> 
-        <div v-if="!running && job.status === 3">
+
+        <div v-if="!running && runCompleted">
   	     <v-card class="mb-4 ml-4 mr-4">
             <v-card-text>Segmentation Image</v-card-text>
 		          {{ renderOutputImage(outputImageUrl) }} 
@@ -105,16 +105,18 @@
            <div ref="outputImageDiv" id ="openseadragon2" style="width:1000px;height:800px; margin: auto;"> </div>
           </v-card>
 
-          <v-card  align="center" justify="center" class="mt-20 mb-4 ml-4 mr-4">
-             <div id="visM" ref="visModel" class="mt-20 mb-4 ml-4 mr-4"></div>
-          </v-card>
-
-          <v-card v-if="table.length > 0" class="mt-8 mb-4 ml-4 mr-4">
-            <v-card-text>Image Statistics</v-card-text>
-            <json-data-table :data="table" />
-          </v-card>
-
         </div>
+
+        <v-card  align="center" justify="center" class="mt-20 mb-4 ml-4 mr-4">
+            <div id="visM" ref="visModel" class="mt-20 mb-4 ml-4 mr-4"></div>
+        </v-card>
+
+        <v-card v-if="table.length > 0" class="mt-8 mb-4 ml-4 mr-4">
+          <v-card-text>Image Statistics</v-card-text>
+          <json-data-table :data="table" />
+        </v-card>
+
+
 
 
 
@@ -148,6 +150,7 @@ export default {
     imageBlob: [],
     uploadedImageUrl: '',
     job: { status: 0 },
+    result: { status: 0 },
     readyToDisplayInput: false,
     running: false,
     thumbnail: [],
@@ -244,8 +247,6 @@ export default {
       	}
       },
 
-
-
     async run() {
       this.running = true;
       this.errorLog = null;
@@ -271,95 +272,42 @@ export default {
  
       // start the job by passing parameters to the REST call
       console.log('starting backend inference')
-      this.job = (await this.girderRest.post(
+      this.result = (await this.girderRest.post(
         `inference?${params}`,
       )).data;
-      console.log('after inference call.  quick or slow? ')
-      console.log('job',this.job)
-      // wait for the job to finish
-      //await pollUntilJobComplete(this.girderRest, this.job, job => this.job = job);
-
-      if (this.job.status === 3) {
+      console.log('inference result',this.result)
+  
+      if (this.result.status === "success") {
         this.running = false;
-        console.log('printing returned item from job. includes the JSON?',this.job)
-	       // pull the URL of the output from girder when processing is completed. This is used
-	       // as input to an image on the web interface
-        //this.result = (await this.girderRest.get(`item/${outputItem._id}/download`,{responseType:'blob'})).data;
-	       // set this variable to display the resulting output image on the webpage
-         console.log('job result?',this.job.result) 
-        this.outputImageUrl = window.URL.createObjectURL(this.job.result);
+        this.runCompleted = true;
 
-        // get the stats returned
-        this.stats = (await this.girderRest.get(`item/${statsItem._id}/download`,{responseType:'text'})).data;
-        console.log('returned stats',this.stats)
-        console.log('parsed stats',this.stats.ARMS, this.stats.ERMS,this.stats.necrosis)
-
-        // copy this data to a state variable for rendering in a table
-        this.data = [this.stats]
-        this.data.columns = ['ARMS','ERMS','necrosis','stroma']
-        // render by updating the this.table model
-        this.table = this.data
-
-        // render the image statistics below the image
+        // copy this data to a state variable for rendering in a table. convert from a string
+        this.data = JSON.parse([this.result.result])
+        console.log ('json to plot:',this.data)
 
         // build the spec here.  Inside the method means that the data item will be available. 
-        let titleString = 'Percentage of the slide positive for each tissue class'
+        let titleString = 'Display the tumor segmentation contours'
+        var thumbURL = window.URL.createObjectURL(this.thumbnail)
+        console.log('thumbnail:',this.thumbnail)
+        console.log('thumbURL:',thumbURL)
 
-        var vegaLiteSpec = {
-            "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
-            "description": "A simple bar chart with embedded data.",
-             title: titleString,
-              "height": 450,
-              "width": 600,
-              "autosize": {
+        var vegaLiteSpec = {     
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "title": titleString,
+            "width": 500,
+            "height": 300,
+            "autosize": {
                 "type": "fit",
                 "contains": "padding"
-              },
-            "data": {
-              "values": [
-                {"Class": "ARMS","percent": this.stats.ARMS}, 
-                {"Class": "ERMS","percent": this.stats.ERMS}, 
-                {"Class": "Stroma","percent": this.stats.stroma}, 
-                {"Class": "Necrosis","percent": this.stats.necrosis}
-
-              ]
             },
-           "layer": [{
-              "mark": "bar"
-            }, {
-              "mark": {
-                "type": "text",
-                "align": "center",
-                "baseline": "bottom",
-                "fontSize": 13,
-                "dx": 0
-              },
-              "encoding": {
-                "text": {"field": "percent", "type": "quantitative"}
-              }
-            }],
-            "encoding": {
-              "x": {"field": "Class", "type": "ordinal","title":"Tissue Classification"},
-              "y": {"field": "percent", "type": "quantitative","title":"Percent of tissue positive for each class"},
-              "color": {
-                  "field": "Class",
-                  "type":"nominal",
-                  "scale": {"domain":["ARMS","ERMS","Necrosis","Stroma"],"range": ["blue","red","yellow","lightgreen"]}
-                  }
-            }
+            "mark": {"type": "image","aspect":"True","url": thumbURL},
           };
+
           // render the chart with options to save as PNG or SVG, but other options turned off
           vegaEmbed(this.$refs.visModel,vegaLiteSpec,
                  {padding: 10, actions: {export: true, source: false, editor: false, compiled: false}});
 
 
-
-
-
-        this.runCompleted = true;
-      }
-      if (this.job.status === 4) {
-        this.running = false;
       }
     },
 
@@ -384,16 +332,29 @@ export default {
     },
 
     // download the segmentation image result when requested by the user
-    async downloadResults() {
-        const url = window.URL.createObjectURL(this.result);
+    async downloadResults_orig() {
+        const url = window.URL.createObjectURL(this.result.result);
 	      console.log("url:",url)
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', 'infer_results.png') 
+        link.setAttribute('download', 'tumor_prediction.json') 
         document.body.appendChild(link);
         link.click();
 	      document.body.removeChild(link);
     },
+
+
+    downloadResults() {
+        var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.data));
+        var dlAnchorElem = document.createElement('a');
+        dlAnchorElem.setAttribute("href",     dataStr     );
+        dlAnchorElem.setAttribute("download", "tumor_prediction.json");
+        document.body.appendChild(dlAnchorElem);
+        dlAnchorElem.click();
+        document.body.removeChild(dlAnchorElem);
+    },
+
+
 
     // reload the page to allow the user to process another image.
     // this clears all state and image displays. The scroll command

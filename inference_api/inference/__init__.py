@@ -236,9 +236,9 @@ class ImageInference_API(Resource):
         # generate a spot in Girder for the output data file (a geoJSON file)
         # We generate unique names for multiple runs.
         try:  
-            outname = imageId+'__pred.json'
+            outname = 'tumor_predict_'+imageId+'.json'
         except:
-            outname = NamedTemporaryFile(delete=False).name+'__pred.json'
+            outname = 'tumor_predict_'+NamedTemporaryFile(delete=False).name+'.json'
         print('outname:',outname)
 
         print('invoke deep learning script')
@@ -248,19 +248,18 @@ class ImageInference_API(Resource):
         print('set arguments')
         predictOutput = c.parseMeta_and_pullTiles(imageId)
 
-        cleanedOutput = predictOutput[1:-1]
         print('parseMeta')
-        statistics = c.generateStatsString(cleanedOutput)
+        statistics = c.generateStatsString(predictOutput)
         print('stats')
 
         # write the output to the named file
         with open(outname, 'w') as outfile:
-            outfile.write(cleanedOutput)
+            outfile.write(predictOutput)
 
         print('inferencing complete')
 
         # return the output JSON and the stats
-        response = {'status':'success','stats':statistics, 'result':cleanedOutput,'outname':outname}
+        response = {'status':'success','stats':statistics, 'result':predictOutput,'outname':outname}
         return response
 
 
@@ -294,7 +293,7 @@ class extractPatch:
         print('learner loaded')
 
         # fetch the actual image data from the uploaded record
-        #rint('finding image in girder backend')
+        #print('finding image in girder backend')
         gc = girder_client.GirderClient(apiUrl='http://localhost:8080/girder/api/v1')
         login = gc.authenticate(globals['girderUser'],globals['girderPassword'])
         print('logged into girder successfully.')
@@ -302,12 +301,13 @@ class extractPatch:
         fileRec = gc.getFile(imageId)
         print('found file',fileRec['_id'])
         print('file record',fileRec)
-      
         # hard to find the file on the disk, so download again.  Inefficient, but it works
         print('downloading file')
         gc.downloadFile(fileRec['_id'],'imageFile.ndpi')
         self.image_file = 'imageFile.ndpi'
         print('setting infile name and downloaded it')
+
+
 
         print('image is at:',self.image_file)
 

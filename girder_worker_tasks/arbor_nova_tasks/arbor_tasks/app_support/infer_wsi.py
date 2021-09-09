@@ -11,8 +11,8 @@ os.sched_setaffinity(0, (0,))
 # and is a workaround for subprocess limitations on 'daemonic' processes.
 
 #subprocessMethod = 'billiard'
-subprocessMethod = 'torch'
-#subprocessMethod = 'none'
+#subprocessMethod = 'torch'
+subprocessMethod = 'none'
 
 if (subprocessMethod == "torch"):
     print('setup torch multiprocessing')
@@ -80,8 +80,6 @@ def infer_wsi(self,image_file,**kwargs):
     # generate a spot in Girder for the output data file (a geoJSON file)
     # We generate unique names for multiple runs.  
     outname = NamedTemporaryFile(delete=False).name+'_preds.json'
-
-    subprocess = True
 
     if (subprocessMethod == 'torch'):
         # declare a subprocess that does the GPU allocation to keep the GPU memory from leaking
