@@ -247,19 +247,20 @@ class ImageInference_API(Resource):
         c.setArguments(imageId, outname,[5])
         print('set arguments')
         predictOutput = c.parseMeta_and_pullTiles(imageId)
+        predictAsTopo = c.GeoToTopoJson(predictOutput)
 
         print('parseMeta')
         statistics = c.generateStatsString(predictOutput)
         print('stats')
 
         # write the output to the named file
-        with open(outname, 'w') as outfile:
-            outfile.write(predictOutput)
+        #with open(outname, 'w') as outfile:
+        #    outfile.write(predictOutput)
 
         print('inferencing complete')
 
         # return the output JSON and the stats
-        response = {'status':'success','stats':statistics, 'result':predictOutput,'outname':outname}
+        response = {'status':'success','stats':statistics, 'result':predictOutput,'topojson':predictAsTopo,'outname':outname}
         return response
 
 
@@ -405,7 +406,6 @@ class extractPatch:
         all_polys = unary_union(polygons)
         final_polys = []
         for poly in all_polys:
-            #print('poly:',poly)
             if poly.type == 'Polygon':
                 newpoly = Polygon(poly.exterior)
                 if newpoly.area*mpp*mpp > 12000:
@@ -438,11 +438,23 @@ class extractPatch:
         prop_ws = (bw > 0.8).sum()/(bw>0).sum()
         return prop_ws
 
+    # calculate the output data and statistics for the prediction to be returned to the GUI for display
 
-    # calculate the statistics for the image to be returned to the GUI for display
+    def GeoToTopoJson(self, geostring):
+        # see http://github.com/topojson/topojson-specification
+        geojson = json.loads(geostring)
+        transform = {"scale":[1,1],"translate":[0,0]}
+        topo = {'type': 'Topology', 'transform':transform}
+        exampleObj = {"type": "GeometryCollection"}
+        exampleObj['geometries'] = geojson
+        topo['objects'] = exampleObj
+        return json.dumps(topo)
 
-    def generateStatsString(self,predict_image):        
-        statsDict = {'metric':1.0 }
+    # count the number of polygons so we can print a graph of the number of detected regions
+    def generateStatsString(self,geostring):         
+        geojson = json.loads(geostring)
+        numPolys = len(geojson)    
+        statsDict = {'numberOfRegions':numPolys }
         # convert dict to json string
         print('statsdict:',statsDict)
         statsString = json.dumps(statsDict)

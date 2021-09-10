@@ -78,8 +78,7 @@
 
 
         <v-flex xs12 class="text-xs-center">
-          <img src="../assets/FNLCR-logo.png">
-          <img src="../assets/nci-oncogenomics-logo.png">
+          <img src="../assets/ai-resource-logo.png">
         </v-flex>
           <v-flex xs12>
 
@@ -98,8 +97,8 @@
             </v-btn>
           </v-flex>
 
-        <v-flex xs12>
-          <span class="title">Applications</span>
+        <v-flex v-if="loggedIn" xs12>
+          <span class="title">AIR Applications</span>
         </v-flex>
 
         
@@ -171,10 +170,10 @@ export default {
     samples: [
 
      {   
-       label: 'Whole Slide tumor Segmentation',
-       image: require('../assets/infer_wsi.png'),
+       label: 'Preclinical lung adenocarcinoma segmentation',
+       image: require('../assets/carcinoma-tissue.png'),
        route: 'infer_wsi',
-       description: 'Generate contours around tumor regions in an uploaded whole slide image',
+       description: 'Generate contours of tumor regions in an uploaded whole slide image',
      },    
     ],
   }),

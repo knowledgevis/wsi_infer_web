@@ -3,7 +3,7 @@
     <v-layout class="transform-view" row fill-height>
       <v-navigation-drawer permanent fixed style="width: 400px; min-width: 400px;">
         <v-toolbar dark flat color="primary">
-          <v-toolbar-title class="white--text">Whole Slide RMS Segmentation</v-toolbar-title>
+          <v-toolbar-title class="white--text">Preclinical Carcinoma Segmentation</v-toolbar-title>
         </v-toolbar>
         <v-spacer/>
         <v-container fluid>
@@ -58,36 +58,45 @@
       <v-layout column justify-start fill-height style="margin-left: 400px">
           <v-card class="ma-4">
             <v-card-text>
-              <b>This application segments a whole slide image by executing a neural network that has
-		been pre-trained to segment rhabdomyosarcoma tissue subtypes in H&E stained   
-		whole slide images.  Uploaded images can be in Aperio (.svs) format or they can be pyramidal TIF files.
+              <b>This application detects and identifies regions of adenocarcinoma from a whole slide image by executing a 
+                neural network pre-trained by the NIH AI Resource (AIR) team. Uploaded images can be in any of 
+                the standard whole slide image formats.
               <br><br>
-		After selecting an image for upload, be patient during the upload process. Once the input image is displayed below, please click the "Go" button to begin execution.  Execution may take up to several minutes,
-		depending on the size of the input image being provided.  When the analysis is complete, the resulting segmentation
-		will be displayed below and will be available for downloading, using the download button.  If you would like to segment additional images, please just click "Prepare for Another Image" in between each segmentation operation. This tells the system to reset and prepare to run again.  
-              <br><br>
-		We are delighted that you are trying our early release system for rhabdomyosarcoma analysis. Thank you.  
-		If you have any questions while using our system, please feel free to email Dr. Yanling Liu at liuy5@mail.nih.gov.  
-		</b>
+              After selecting an image for upload, please be patient during the upload process, as WSIs can take 
+              a long time to transfer. Once a thumbnail of the input mage is displayed below, please click the "Go" 
+              button to begin execution. After analysis begins, please again be patient, as the neural network-based 
+              analysis will take several minutes, depending on the size of the input image being provided. When the 
+              analysis is complete, the resulting segmentation will be displayed below and will be available for downloading, 
+              using the download button. If you would like to segment additional images, please just click "Prepare for 
+              Another Image" in between each segmentation operation. This tells the system to reset and prepare to run again.
+                <br><br>
+              We are delighted that you are trying our early release system for adenocarcinoma analysis. Thank you.  
+              If you have any questions while using our system, please email Dr. Stephanie Harmon at stephanie.harmon@nih.gov.  
+              </b>
             </v-card-text>
           </v-card>
+
            <div v-if="uploadIsHappening" xs12 class="text-xs-center mb-4 ml-4 mr-4">
-           Image Upload in process...
-           <v-progress-linear indeterminate=True></v-progress-linear>
-        </div>
-        <div  xs12 class="text-xs-center mb-4 ml-4 mr-4">
-  	       <v-card class="mb-4 ml-4 mr-4">
-            <v-card-text>Uploaded Image</v-card-text>
-               <img :src="inputImageUrl" style="display: block; margin: auto"> 
-            </v-card>
-        </div>
+              Image Upload in process...
+              <v-progress-linear indeterminate=True></v-progress-linear>
+          </div>
+
+          <div v-if="thumbnailComplete">
+            <div  xs12 class="text-xs-center mb-4 ml-4 mr-4">
+              <v-card class="mb-4 ml-4 mr-4">
+                <v-card-text>Uploaded Image</v-card-text>
+                  <img :src="inputImageUrl" style="display: block; margin: auto"> 
+                </v-card>
+            </div>
+          </div>
 
         <v-card v-if="running && job.status==0" xs12 class="text-xs-center mb-4 ml-4 mr-4">
             Another user is currently using the system.  Please wait.  Your inferencing job should begin automatically when the previous job completes. 
             <v-progress-linear indeterminate=True></v-progress-linear>
         </v-card>
-        <v-card v-if="running && job.status == 2" xs12 class="text-xs-center mb-4 ml-4 mr-4">
-            Running (Job Status {{ job.status }}) ... please wait for the output image to show below
+
+        <v-card v-if="running" xs12 class="text-xs-center mb-4 ml-4 mr-4">
+            Running Neural Network... please wait for the output to show below. This will take several minutes.
           <v-progress-linear indeterminate=True></v-progress-linear>
         </v-card>
 
@@ -95,28 +104,18 @@
           Job Complete  ... 
         </div>
 
-        <div v-if="!running && runCompleted">
-  	     <v-card class="mb-4 ml-4 mr-4">
-            <v-card-text>Segmentation Image</v-card-text>
-		          {{ renderOutputImage(outputImageUrl) }} 
+        <div v-if="thumbnailComplete">
+
+          <v-card  align="center" justify="center" class="mt-20 mb-4 ml-4 mr-4">
+              <div id="visM" ref="visModel" class="mt-20 mb-4 ml-4 mr-4"></div>
           </v-card>
 
-          <v-card class="mb-4 ml-4 mr-4">  
-           <div ref="outputImageDiv" id ="openseadragon2" style="width:1000px;height:800px; margin: auto;"> </div>
+          <v-card v-if="table.length > 0" class="mt-8 mb-4 ml-4 mr-4">
+            <v-card-text>Image Statistics</v-card-text>
+            <json-data-table :data="table" />
           </v-card>
 
         </div>
-
-        <v-card  align="center" justify="center" class="mt-20 mb-4 ml-4 mr-4">
-            <div id="visM" ref="visModel" class="mt-20 mb-4 ml-4 mr-4"></div>
-        </v-card>
-
-        <v-card v-if="table.length > 0" class="mt-8 mb-4 ml-4 mr-4">
-          <v-card-text>Image Statistics</v-card-text>
-          <json-data-table :data="table" />
-        </v-card>
-
-
 
 
 
@@ -154,6 +153,7 @@ export default {
     readyToDisplayInput: false,
     running: false,
     thumbnail: [],
+    thumbnailComplete: false,
     result: [],
     table: [],
     stats: [],
@@ -219,33 +219,16 @@ export default {
             this.thumbnail = (await this.girderRest.get(`item/${outputItem._id}/download`,{responseType:'blob'})).data;
             // set this variable to display the resulting output image on the webpage 
             this.inputImageUrl = window.URL.createObjectURL(this.thumbnail);
+
           }
 
           console.log('render input finished')
 	        this.inputDisplayed = true
+          this.thumbnailComplete = true;
 	     }
     },
 
 
-
-    // method is added here to enable openSeadragon to render the output image into a div defined in the vue template
-    // above.  This code is re-executed for each change, so the code is gated to only run once 
-    renderOutputImage(imageurl) {
-       if ((this.outputDisplayed == false) & (this.outputImageUrl.length > 0)) {
-      console.log('output url:',imageurl)
-      var viewer2 =  OpenSeadragon( {
-	       element: this.$refs.outputImageDiv, 
-	       maxZoomPixelRatio: 4.0,
-         prefixUrl: "/static/arbornova/images/",
-         tileSources: {
-          type: 'image',
-          url:   imageurl
-    	  }
-      	});
-        console.log('openseadragon output finished')
-      	this.outputDisplayed = true
-      	}
-      },
 
     async run() {
       this.running = true;
@@ -282,25 +265,52 @@ export default {
         this.runCompleted = true;
 
         // copy this data to a state variable for rendering in a table. convert from a string
-        this.data = JSON.parse([this.result.result])
+        this.data = JSON.parse(this.result.result)
         console.log ('json to plot:',this.data)
+        this.stats = JSON.parse(this.result.stats)
 
         // build the spec here.  Inside the method means that the data item will be available. 
-        let titleString = 'Display the tumor segmentation contours'
-        var thumbURL = window.URL.createObjectURL(this.thumbnail)
-        console.log('thumbnail:',this.thumbnail)
-        console.log('thumbURL:',thumbURL)
+        let titleString = 'Number of adenocarcinoma contours predicted'
 
-        var vegaLiteSpec = {     
-            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-            "title": titleString,
-            "width": 500,
-            "height": 300,
-            "autosize": {
+        var vegaLiteSpec = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+            "description": "A simple bar chart with embedded data.",
+             title: titleString,
+              "height": 200,
+              "width": 600,
+              "autosize": {
                 "type": "fit",
                 "contains": "padding"
+              },
+            "data": {
+              "values": [
+                {"Class": "Regions","count": this.stats.numberOfRegions}, 
+             
+              ]
             },
-            "mark": {"type": "image","aspect":"True","url": thumbURL},
+           "layer": [{
+              "mark": "bar"
+            }, {
+              "mark": {
+                "type": "text",
+                "align": "center",
+                "baseline": "bottom",
+                "fontSize": 13,
+                "dx": 25
+              },
+              "encoding": {
+                "text": {"field": "count", "type": "quantitative"}
+              }
+            }],
+            "encoding": {
+              "y": {"field": "Class", "type": "ordinal", "title":""},
+              "x": {"field": "count", "type": "quantitative", "title":"Count of separate cancerous regions"},
+              "color": {
+                  "field": "Class",
+                  "type":"nominal",
+                  "scale": {"domain":["Regions"],"range": ["blue"]}
+                  }
+            }
           };
 
           // render the chart with options to save as PNG or SVG, but other options turned off
@@ -331,24 +341,15 @@ export default {
       }
     },
 
-    // download the segmentation image result when requested by the user
-    async downloadResults_orig() {
-        const url = window.URL.createObjectURL(this.result.result);
-	      console.log("url:",url)
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', 'tumor_prediction.json') 
-        document.body.appendChild(link);
-        link.click();
-	      document.body.removeChild(link);
-    },
 
-
+    // when the user clicks download, download this through the browser.  Name it the same as the uploaded file with
+    // _prediction.json appended to the name
     downloadResults() {
         var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.data));
         var dlAnchorElem = document.createElement('a');
         dlAnchorElem.setAttribute("href",     dataStr     );
-        dlAnchorElem.setAttribute("download", "tumor_prediction.json");
+        outfilename = os.path.splitext(this.imageFileName)+"_prediction.json"
+        dlAnchorElem.setAttribute("download", outfilename);
         document.body.appendChild(dlAnchorElem);
         dlAnchorElem.click();
         document.body.removeChild(dlAnchorElem);
@@ -362,6 +363,8 @@ export default {
     reset() {
       window.location.reload(true);
       window.scrollTo(0,0);
+      this.thumbnailComplete=false;
+      this.runCompleted=false;
     },
   }
 }
