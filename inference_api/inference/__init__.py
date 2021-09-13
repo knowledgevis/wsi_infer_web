@@ -5,6 +5,8 @@ from tempfile import NamedTemporaryFile
 from girder.api.rest import Resource
 from girder.api.describe import Description, describeRoute, RestException
 from girder.api import access
+from girder.models.file import File
+
 import pymongo
 from pymongo import MongoClient
 import girder_client
@@ -294,13 +296,13 @@ class extractPatch:
         print('learner loaded')
 
         # fetch the actual image data from the uploaded record
-        #print('finding image in girder backend')
+        print('finding image in girder backend')
         gc = girder_client.GirderClient(apiUrl='http://localhost:8080/girder/api/v1')
         login = gc.authenticate(globals['girderUser'],globals['girderPassword'])
         print('logged into girder successfully.')
         print('trying to local filename of file',imageId)
         fileRec = gc.getFile(imageId)
-        print('found file',fileRec['_id'])
+        #print('found file',fileRec['_id'])
         print('file record',fileRec)
         # hard to find the file on the disk, so download again.  Inefficient, but it works
         print('downloading file')
@@ -308,7 +310,9 @@ class extractPatch:
         self.image_file = 'imageFile'
         print('setting infile name and downloaded it')
 
-
+        # get local filename from girder
+        #file = File().load(imageId, user=globals['girderUser'])
+        #self.image_file = File().getLocalFilePath(file)
 
         print('image is at:',self.image_file)
 
