@@ -78,9 +78,15 @@ globals['mongo-host'] = 'localhost'
 globals['mongo-log-collection'] = 'logging'
 globals['mongo-port'] = 27017
 globals['timezone'] = 'US/Eastern'
-globals['modelPath'] = '/home/ubuntu/wsi_infer_web/models/deeplabv3_resnet50_10ep_lr1e4_nonorm.pkl'
 globals['girderUser'] = 'anonymous'
 globals['girderPassword'] = 'letmein'
+globals['docker'] = True
+
+if globals['docker'] == True:
+    globals['modelPath'] = '/wsi_infer_web/models/deeplabv3_resnet50_10ep_lr1e4_nonorm.pkl'
+else:
+    globals['modelPath'] = '/home/ubuntu/wsi_infer_web/models/deeplabv3_resnet50_10ep_lr1e4_nonorm.pkl'
+
 
 
 client = None
