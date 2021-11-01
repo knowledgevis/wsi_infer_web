@@ -378,7 +378,7 @@ export default {
         var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.data));
         var dlAnchorElem = document.createElement('a');
         dlAnchorElem.setAttribute("href",     dataStr     );
-        outfilename = os.path.splitext(this.imageFileName)+"_prediction.json"
+        var outfilename = "adenocarcinoma_prediction.json"
         dlAnchorElem.setAttribute("download", outfilename);
         document.body.appendChild(dlAnchorElem);
         dlAnchorElem.click();

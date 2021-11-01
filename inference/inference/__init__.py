@@ -78,7 +78,7 @@ globals['mongo-host'] = 'localhost'
 globals['mongo-log-collection'] = 'logging'
 globals['mongo-port'] = 27017
 globals['timezone'] = 'US/Eastern'
-globals['modelPath'] = './models/deeplabv3_resnet50_10ep_lr1e4_nonorm.pkl'
+globals['modelPath'] = '/home/ubuntu/wsi_infer_web/models/deeplabv3_resnet50_10ep_lr1e4_nonorm.pkl'
 globals['girderUser'] = 'anonymous'
 globals['girderPassword'] = 'letmein'
 
@@ -306,8 +306,8 @@ class extractPatch:
         print('file record',fileRec)
         # hard to find the file on the disk, so download again.  Inefficient, but it works
         print('downloading file')
-        gc.downloadFile(fileRec['_id'],'imageFile')
-        self.image_file = 'imageFile'
+        gc.downloadFile(fileRec['_id'],'/tmp/imageFile')
+        self.image_file = '/tmp/imageFile'
         print('setting infile name and downloaded it')
 
         # get local filename from girder
@@ -425,12 +425,14 @@ class extractPatch:
 
         # if there were no polygons found, this code generates a runtime exception, so 
         # catch the exception and return an empty list
+
         try:
             for i in range(0, len(final_shape)):
                 trythis += json.dumps(
                     {"type": "Feature", "id": "PathAnnotationObject", "geometry": shapely.geometry.mapping(final_shape[i]),
                     "properties": {"classification": {"name": "Tumor", "colorRGB": -16711936}, "isLocked": False,
                                     "measurements": []}}, indent=4)
+
                 if i < len(final_shape) - 1:
                     trythis += ','
             trythis += ']'
