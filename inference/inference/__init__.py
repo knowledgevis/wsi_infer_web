@@ -422,14 +422,20 @@ class extractPatch:
         final_shape = unary_union(final_polys)
 
         trythis = '['
-        for i in range(0, len(final_shape)):
-            trythis += json.dumps(
-                {"type": "Feature", "id": "PathAnnotationObject", "geometry": shapely.geometry.mapping(final_shape[i]),
-                 "properties": {"classification": {"name": "Tumor", "colorRGB": -16711936}, "isLocked": False,
-                                "measurements": []}}, indent=4)
-            if i < len(final_shape) - 1:
-                trythis += ','
-        trythis += ']'
+
+        # if there were no polygons found, this code generates a runtime exception, so 
+        # catch the exception and return an empty list
+        try:
+            for i in range(0, len(final_shape)):
+                trythis += json.dumps(
+                    {"type": "Feature", "id": "PathAnnotationObject", "geometry": shapely.geometry.mapping(final_shape[i]),
+                    "properties": {"classification": {"name": "Tumor", "colorRGB": -16711936}, "isLocked": False,
+                                    "measurements": []}}, indent=4)
+                if i < len(final_shape) - 1:
+                    trythis += ','
+            trythis += ']'
+        except TypeError:
+            trythis = '[]'
         # return the output for postprocessing and download
         return trythis
       
