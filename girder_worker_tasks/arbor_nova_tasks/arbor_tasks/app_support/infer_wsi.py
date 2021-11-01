@@ -264,14 +264,22 @@ class extractPatch:
         final_shape = unary_union(final_polys)
 
         trythis = '['
-        for i in range(0, len(final_shape)):
-            trythis += json.dumps(
-                {"type": "Feature", "id": "PathAnnotationObject", "geometry": shapely.geometry.mapping(final_shape[i]),
-                 "properties": {"classification": {"name": "Tumor", "colorRGB": -16711936}, "isLocked": False,
-                                "measurements": []}}, indent=4)
-            if i < len(final_shape) - 1:
-                trythis += ','
-        trythis += ']'
+
+        # write out the polygon coordinates discovered.  This causes a TypeError if 
+        # len(final_shape) is undefined (when no polygons were discovered). so we added
+        # an error catch here
+        try:
+            for i in range(0, len(final_shape)):
+                trythis += json.dumps(
+                    {"type": "Feature", "id": "PathAnnotationObject", "geometry": shapely.geometry.mapping(final_shape[i]),
+                    "properties": {"classification": {"name": "Tumor", "colorRGB": -16711936}, "isLocked": False,
+                                    "measurements": []}}, indent=4)
+                if i < len(final_shape) - 1:
+                    trythis += ','
+            trythis += ']'
+        except:
+            # no polygons were found by the algorithm.  Return an empty list
+            trythis = '[]'
         # return the output for postprocessing and download
         return trythis
       

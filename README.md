@@ -1,9 +1,9 @@
 
 ==========
-web_apps
+web_apps_container
 ==========
 
-easy-mode web apps plugin for Girder 3.
+A web apps plugin for the python, opensource storage and task manager, Girder 3.
 
 This application uses Girder 3 to serve a webpage which can invoke
 python functions through AJAX calls to perform operations.  An instance
@@ -12,18 +12,16 @@ of girder_worker services the API to run jobs invoked through the web interface.
 To add a new mini-application to the web interface:
 
 Add python file for app function in ttt/app_support
-Edit __init__.py in ttt/app_support
-Edit rest.py in girder_plugin/arbor_nova with import statement, 
-    self.route statement, 
-    and a definition wrapping the function and parameters
-Add vue definition in client/src/apps
-Add picture for app in client/src/assets
-Add app to the home page by editing Home.vue in client/src/views
-Add router to app in router.js in client/src
-Run pip install -e . in girder_plugin
-Run pip install -e . in girder_worker_tasks
-Run yarn build in /client, rm the old dist and cp the new one
-Restart girder_worker.service and girder.service
+* Edit __init__.py in ttt/app_support
+* Edit rest.py in girder_plugin/arbor_nova with import statement, self.route statement, and a definition wrapping the function and parameters
+* Add vue definition in client/src/apps
+* Add picture for app in client/src/assets
+* Add app to the home page by editing Home.vue in client/src/views
+* Add router to app in router.js in client/src
+* Run pip install -e . in girder_plugin
+* Run pip install -e . in girder_worker_tasks
+* Run yarn build in /client, rm the old dist and cp the new one
+* Restart girder_worker.service and girder.service
     (sudo systemctl restart girder, sudo systemctl restart girder_worker)
 
 For debugging purposes, it is easier to run 'girder serve' and girder_worker by hand. 
@@ -51,9 +49,9 @@ This is descriptive rather than prescriptive, but it is what has been tested.
 
 .. code-block:: bash
 
-    $ cd arbor_nova/girder_worker_tasks    
+    $ cd wsi_infer_web/girder_worker_tasks    
     $ pip install -e .                     # install gw tasks for producer
-    $ cd ../../arbor_nova/girder_plugin
+    $ cd ../../wsi_infer_web/girder_plugin
     $ pip install -e .                     # install girder plugin
     $ girder serve                         # start serving girder
  
@@ -68,7 +66,7 @@ This is descriptive rather than prescriptive, but it is what has been tested.
 
 .. code-block:: bash
 
-    $ cd arbor_nova/girder_worker_tasks    
+    $ cd wsi_infer_web/girder_worker_tasks    
     $ pip install -e .                     # install gw tasks for consumer
     $ girder-worker                        # start girder-worker
 
@@ -78,4 +76,4 @@ This is descriptive rather than prescriptive, but it is what has been tested.
 TODO
 ----
 
-* uploaded files are stored in girder permanent.y  Is there a way to clean up?
+* uploaded files are stored in girder permanently  Is there a way to clean up?

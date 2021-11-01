@@ -19,7 +19,7 @@ def wsi_thumbnail(self,image_file,**kwargs):
     outname = NamedTemporaryFile(delete=False).name+'.png'
 
     thumbnail, mimeType = source.getThumbnail(
-        width=1024, height=1024, encoding='PNG')
+        width=800, height=1024, encoding='PNG')
     print('Made a thumbnail of type %s taking %d bytes' % (
         mimeType, len(thumbnail)))
  
