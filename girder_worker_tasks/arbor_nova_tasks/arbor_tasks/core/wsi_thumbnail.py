@@ -7,14 +7,24 @@ import large_image
 
 #-------------------------------------------
 
+import large_image_source_openslide
+
 @girder_job(title='wsi_thumbnail')
 @app.task(bind=True)
 def wsi_thumbnail(self,image_file,**kwargs):
 
+    #configure large_image to handle really pig PNGs since sometimes this is used
+    large_image.config.setConfig('max_small_image_size',100000)
    
     print('generate a thumbnail for a WSI')
-    # open an access handler on the large image
+    # open an access handler on the large image.  This will search through all loaded 
+    # image sources.  It is a bit more flexible than specifically opening the openslide
+    # image source. 
     source = large_image.getTileSource(image_file)
+
+    #print('opening openslilde source by hand')
+    #source = large_image_source_openslide.open(image_file)
+
     # generate unique names for multiple runs.  Add extension so it is easier to use
     outname = NamedTemporaryFile(delete=False).name+'.png'
 
