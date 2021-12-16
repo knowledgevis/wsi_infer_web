@@ -81,7 +81,7 @@
               Another Image" in between each segmentation operation. This tells the system to reset and prepare to run again.
                 <br><br>
               We are delighted that you are trying our early release system for adenocarcinoma analysis. Thank you.  
-              If you have any questions while using our system, please email Dr. Stephanie Harmon at stephanie.harmon@nih.gov.  
+              If you have any questions while using our system, please email the NIH-AI Resource team at air@nih.gov.  
               </b>
             </v-card-text>
           </v-card>

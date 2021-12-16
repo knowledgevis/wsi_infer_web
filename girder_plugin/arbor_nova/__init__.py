@@ -18,6 +18,8 @@ class ArborNovaGirderPlugin(GirderPlugin):
 
     def _create_anonymous_user(self):
 
+        # before building the docker container, create a .env file in the current
+        # directory and define the username and password to be baked into the container
         load_dotenv()
         ANONYMOUS_USER = os.getenv('ANONYMOUS_USER')
         ANONYMOUS_PASSWORD = os.getenv('ANONYMOUS_PASSWORD')
