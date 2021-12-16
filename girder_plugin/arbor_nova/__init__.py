@@ -20,7 +20,7 @@ class ArborNovaGirderPlugin(GirderPlugin):
 
         load_dotenv()
         ANONYMOUS_USER = os.getenv('ANONYMOUS_USER')
-        ANONYMOUS_PASSWORD = os.get('ANONYMOUS_PASSWORD')
+        ANONYMOUS_PASSWORD = os.getenv('ANONYMOUS_PASSWORD')
 
         anon_user = User().findOne({
             'login': ANONYMOUS_USER
