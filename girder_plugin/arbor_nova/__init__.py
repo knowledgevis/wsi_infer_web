@@ -10,16 +10,17 @@ from . import rest
 # during the docker build process.  username/password now doesn't have to be
 # stored in the code. 
 import os
+from dotenv import load_dotenv
 
 
 class ArborNovaGirderPlugin(GirderPlugin):
     DISPLAY_NAME = 'NIH-AIR Adenocarcinoma Inference'
 
     def _create_anonymous_user(self):
-        #ANONYMOUS_USER = 'anonymous'
-        #ANONYMOUS_PASSWORD = 'letmein'
-        ANONYMOUS_USER = os.environ.get('ANONYMOUS_USER')
-        ANONYMOUS_PASSWORD = os.environ.get('ANONYMOUS_PASSWORD')
+
+        load_dotenv()
+        ANONYMOUS_USER = os.getenv('ANONYMOUS_USER')
+        ANONYMOUS_PASSWORD = os.get('ANONYMOUS_PASSWORD')
 
         anon_user = User().findOne({
             'login': ANONYMOUS_USER
