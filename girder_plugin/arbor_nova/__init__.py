@@ -6,13 +6,20 @@ from girder.models.user import User
 from .client_webroot import ClientWebroot
 from . import rest
 
+# added so the username and password can be set in environment variables
+# during the docker build process.  username/password now doesn't have to be
+# stored in the code. 
+import os
+
 
 class ArborNovaGirderPlugin(GirderPlugin):
-    DISPLAY_NAME = 'Arbor Nova'
+    DISPLAY_NAME = 'NIH-AIR Adenocarcinoma Inference'
 
     def _create_anonymous_user(self):
-        ANONYMOUS_USER = 'anonymous'
-        ANONYMOUS_PASSWORD = 'letmein'
+        #ANONYMOUS_USER = 'anonymous'
+        #ANONYMOUS_PASSWORD = 'letmein'
+        ANONYMOUS_USER = os.environ.get('ANONYMOUS_USER')
+        ANONYMOUS_PASSWORD = os.environ.get('ANONYMOUS_PASSWORD')
 
         anon_user = User().findOne({
             'login': ANONYMOUS_USER
