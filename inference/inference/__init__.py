@@ -19,6 +19,9 @@ import datetime
 import string
 import sys
 
+from  dotenv import load_dotenv
+
+
 #-------------------------------------------
 import sys
 import os
@@ -78,15 +81,24 @@ globals['mongo-host'] = 'localhost'
 globals['mongo-log-collection'] = 'logging'
 globals['mongo-port'] = 27017
 globals['timezone'] = 'US/Eastern'
-globals['girderUser'] = 'anonymous'
-globals['girderPassword'] = 'letmein'
 globals['docker'] = True
+
+# when the container was built, passsword environment variables
+# were set for the default user.  We will use the same values in
+# this code for the girder_client to access imagery.
+# this uses dotenv to pull current environment variables
+load_dotenv()
+try:
+    globals['girderUser'] = os.getenv('ANONYMOUS_USER')
+    globals['girderPassword'] = os.getenv('ANONYMOUS_PASSWORD')
+except Exception as e:
+    print('could not find environment variables for the system login')
+    print(e)
 
 if globals['docker'] == True:
     globals['modelPath'] = '/wsi_infer_web/models/deeplabv3_resnet50_10ep_lr1e4_nonorm.pkl'
 else:
     globals['modelPath'] = '/home/ubuntu/wsi_infer_web/models/deeplabv3_resnet50_10ep_lr1e4_nonorm.pkl'
-
 
 
 client = None
@@ -234,6 +246,7 @@ class ImageInference_API(Resource):
             print('imageId',imageId)
         except:
             print('could not read image file variable')
+
 
         # setup the GPU environment for pytorch
         #os.environ['CUDA_VISIBLE_DEVICES'] = '0'
